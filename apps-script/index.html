@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#fff; --fg:#14213d; --muted:#6b7280; --brand:#0b5fa5; --card:#f3f6fa; --ok:#15803d; --err:#b91c1c; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#10151c; --fg:#eef2f7; --muted:#9aa5b4; --brand:#4da3e8; --card:#1b2330; } }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--fg); font:17px/1.4 -apple-system, system-ui, sans-serif; max-width:480px; margin-inline:auto; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 16px; font-size:14px; }
+  label { display:block; font-weight:600; margin:16px 0 6px; }
+  select, input, textarea { width:100%; font-size:18px; padding:12px; border-radius:10px; border:1px solid var(--muted); background:var(--card); color:var(--fg); }
+  .who { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .who button { background:none; border:0; color:var(--brand); font-size:14px; }
+  #studentName { min-height:24px; margin-top:6px; font-weight:600; }
+  .boosts { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:6px; }
+  .boosts button { padding:18px 0; font-size:22px; font-weight:700; border-radius:12px; border:2px solid var(--brand); background:var(--card); color:var(--fg); }
+  .boosts button:disabled { opacity:.35; }
+  .boosts button.sel { background:var(--brand); color:#fff; }
+  .boosts small { display:block; font-size:12px; font-weight:400; }
+  #submit { width:100%; margin-top:18px; padding:16px; font-size:19px; font-weight:700; border:0; border-radius:12px; background:var(--brand); color:#fff; }
+  #submit:disabled { opacity:.45; }
+  #msg { margin-top:12px; min-height:24px; font-weight:600; }
+  .ok { color:var(--ok); } .err { color:var(--err); }
+  #undo { margin-top:6px; background:none; border:0; color:var(--brand); font-size:15px; }
+  h2 { font-size:15px; margin:24px 0 6px; color:var(--muted); }
+  ul { list-style:none; padding:0; margin:0; } li { padding:6px 0; border-bottom:1px solid var(--card); display:flex; justify-content:space-between; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<h1>Ready Set Go Scoring</h1>
+<p class="sub">Rate each student after their 3-minute interview.</p>
+
+<div id="pick">
+  <label for="proSel">Who are you?</label>
+  <select id="proSel"><option value="">Loading...</option></select>
+  <button id="go" style="width:100%;margin-top:14px;padding:14px;font-size:18px;border:0;border-radius:12px;background:var(--brand);color:#fff;font-weight:700">Continue</button>
+  <div id="pickMsg" class="err" style="margin-top:12px"></div>
+</div>
+
+<div id="main" class="hidden">
+  <div class="who"><span id="whoName"></span><button id="switch">Not you?</button></div>
+
+  <label for="sid">Student number (on their sticker)</label>
+  <input id="sid" inputmode="numeric" autocomplete="off" placeholder="e.g. 12">
+  <div id="studentName"></div>
+
+  <label>Boost</label>
+  <div class="boosts" id="boosts">
+    <button data-b="10">+10<small>good</small><small class="left"></small></button>
+    <button data-b="20">+20<small>great</small><small class="left"></small></button>
+    <button data-b="35">+35<small>impressive</small><small class="left"></small></button>
+    <button data-b="50">+50<small>perfect</small><small class="left"></small></button>
+  </div>
+
+  <label for="note">Feedback note (optional)</label>
+  <textarea id="note" rows="2"></textarea>
+
+  <button id="submit" disabled>Submit score</button>
+  <div id="msg"></div>
+  <button id="undo" class="hidden">Undo last entry</button>
+
+  <h2>Your entries</h2>
+  <ul id="hist"></ul>
+</div>
+
+<script>
+var pro = null, boost = null, busy = false, lookupSeq = 0;
+var $ = function (id) { return document.getElementById(id); };
+function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+function msg(t, cls) { $('msg').textContent = t; $('msg').className = cls || ''; }
+// google.script.run often fails when the browser is signed in to more than one Google account.
+var HELP = 'If you are signed in to several Google accounts, open this link in a private/incognito window.';
+function loadFail(e) {
+  $('proSel').innerHTML = '<option value="">Could not load</option>';
+  $('pickMsg').textContent = 'Could not reach the scoring sheet. ' + HELP + ' (' + (e && e.message || e) + ')';
+}
+
+google.script.run.withFailureHandler(loadFail).withSuccessHandler(function (list) {
+  var sel = $('proSel');
+  sel.innerHTML = '<option value="">Select your name</option>' + list.map(function (p) {
+    return '<option value="' + p.id + '" data-n="' + p.name.replace(/"/g, '&quot;') + '">' + p.name + (p.company ? ' (' + p.company + ')' : '') + '</option>';
+  }).join('');
+  var saved = store('rsgPro');
+  if (saved && list.some(function (p) { return p.id === saved; })) { sel.value = saved; enter(); }
+}).getProfessionals();
+
+$('go').onclick = function () { if ($('proSel').value) enter(); };
+$('switch').onclick = function () { store('rsgPro', null); location.reload(); };
+
+function enter() {
+  var o = $('proSel').selectedOptions[0];
+  pro = o.value; store('rsgPro', pro);
+  $('whoName').textContent = o.dataset.n;
+  $('pick').classList.add('hidden'); $('main').classList.remove('hidden');
+  refreshHistory();
+}
+
+function netFail(e) { msg('Network error. ' + HELP, 'err'); }
+
+function refreshHistory() {
+  google.script.run.withFailureHandler(netFail).withSuccessHandler(showLeft).getRemaining(pro);
+  google.script.run.withFailureHandler(netFail).withSuccessHandler(function (h) {
+    $('hist').innerHTML = h.map(function (e) {
+      return '<li><span>#' + e.student + ' ' + (e.name || '') + '</span><b>+' + e.boost + '</b></li>';
+    }).join('') || '<li><span>None yet</span></li>';
+  }).getHistory(pro);
+}
+
+function showLeft(rem) {
+  [].forEach.call($('boosts').children, function (c) {
+    var n = rem[c.dataset.b];
+    c.querySelector('.left').textContent = n + ' left';
+    c.disabled = n < 1;
+    if (n < 1 && c.classList.contains('sel')) { c.classList.remove('sel'); boost = null; }
+  });
+  validate();
+}
+
+function validate() { $('submit').disabled = busy || !($('studentName').dataset.ok === '1' && boost); }
+
+$('sid').oninput = function () {
+  var v = this.value.trim(), seq = ++lookupSeq;
+  $('studentName').dataset.ok = '0'; $('studentName').textContent = ''; validate();
+  if (!v) return;
+  google.script.run.withFailureHandler(function (e) { if (seq === lookupSeq) netFail(e); }).withSuccessHandler(function (s) {
+    if (seq !== lookupSeq) return;
+    $('studentName').textContent = s ? s.name : 'No student with that number';
+    $('studentName').className = s ? '' : 'err';
+    $('studentName').dataset.ok = s ? '1' : '0';
+    validate();
+  }).lookupStudent(v);
+};
+
+$('boosts').onclick = function (e) {
+  var b = e.target.closest('button'); if (!b) return;
+  boost = Number(b.dataset.b);
+  [].forEach.call(this.children, function (c) { c.classList.toggle('sel', c === b); });
+  validate();
+};
+
+function reset() {
+  $('sid').value = ''; $('note').value = ''; boost = null; $('studentName').textContent = ''; $('studentName').dataset.ok = '0';
+  [].forEach.call($('boosts').children, function (c) { c.classList.remove('sel'); });
+  validate(); $('sid').focus();
+}
+
+function send(replace) {
+  busy = true; validate(); msg('Saving...');
+  google.script.run.withSuccessHandler(function (r) {
+    busy = false;
+    if (r.needsConfirm) {
+      if (confirm('You already gave ' + r.student + ' +' + r.existing + '. Replace it with +' + boost + '?')) return send(true);
+      msg('Not saved.', 'err'); return validate();
+    }
+    if (r.remaining) showLeft(r.remaining);
+    if (!r.ok) { msg(r.error, 'err'); return validate(); }
+    msg((r.replaced ? 'Updated: ' : 'Saved: ') + r.student + ' +' + r.boost, 'ok');
+    $('undo').classList.remove('hidden'); setTimeout(function () { $('undo').classList.add('hidden'); }, 60000);
+    reset(); refreshHistory();
+  }).withFailureHandler(function (e) {
+    busy = false; msg('Network error, try again.', 'err'); validate();
+  }).submitScore(pro, $('sid').value, boost, $('note').value, !!replace);
+}
+$('submit').onclick = function () { send(false); };
+
+$('undo').onclick = function () {
+  google.script.run.withSuccessHandler(function (r) {
+    msg(r.ok ? 'Last entry undone.' : r.error, r.ok ? 'ok' : 'err');
+    if (r.ok) { $('undo').classList.add('hidden'); refreshHistory(); }
+  }).withFailureHandler(netFail).undoLast(pro);
+};
+</script>
+</body>
+</html>
