@@ -2,6 +2,10 @@
 
 Live scoring for Ready Set Go. The pages are hosted on GitHub Pages; the data stays in the Google Sheet, with `Code.gs` (Apps Script) as the backend.
 
+**Live site**
+- Scoring page: [utalpfa.github.io/rsg-scoring-web](https://utalpfa.github.io/rsg-scoring-web/)
+- Admin page: [utalpfa.github.io/rsg-scoring-web/admin.html](https://utalpfa.github.io/rsg-scoring-web/admin.html)
+
 ```
 docs/          GitHub Pages site (scoring page, admin page, api.js)
 apps-script/   Code.gs + the original Apps Script HTML pages
@@ -10,11 +14,6 @@ apps-script/   Code.gs + the original Apps Script HTML pages
 ## Why GitHub Pages
 
 Apps Script web apps break for visitors signed in to a school Google Workspace account or to several Google accounts at once. The hosted pages call the web app with plain anonymous requests (`docs/api.js` stands in for `google.script.run`), so the visitor's Google sign-in never gets involved.
-
-## Pages
-
-- Scoring: `https://utalpfa.github.io/rsg-scoring-web/`
-- Admin: `https://utalpfa.github.io/rsg-scoring-web/admin.html`
 
 ## Backend setup
 
