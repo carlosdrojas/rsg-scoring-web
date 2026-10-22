@@ -13,8 +13,8 @@ Apps Script web apps break for visitors signed in to a school Google Workspace a
 
 ## Pages
 
-- Scoring: `https://carlosdrojas.github.io/rsg-scoring-web/`
-- Admin: `https://carlosdrojas.github.io/rsg-scoring-web/admin.html`
+- Scoring: `https://utalpfa.github.io/rsg-scoring-web/`
+- Admin: `https://utalpfa.github.io/rsg-scoring-web/admin.html`
 
 ## Backend setup
 
